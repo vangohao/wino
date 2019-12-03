@@ -11,14 +11,18 @@
 // #define OUTTYPE ap_fixed<32, 3>
 #define OUTTYPE ap_fixed<32, 6>
 #else
-#define BLOCKTYPE ap_fixed<16, 4>
-#define BtZTYPE ap_fixed<18, 7>
-#define UTYPE ap_fixed<18, 11>
-#define WTYPE ap_fixed<16, -3>
-#define UVTYPE ap_fixed<34, 8>
-// #define BLOCKTYPE ap_fixed<16, 3>
-// #define WTYPE ap_fixed<16, 0>
-#define OUTTYPE ap_fixed<32, 6>
+#define BLOCKTYPE float
+#define BtZTYPE float
+#define UTYPE float
+#define WTYPE float
+#define UVTYPE float
+#define OUTTYPE float
+// #define BLOCKTYPE ap_fixed<16, 4>
+// #define BtZTYPE ap_fixed<18, 7>
+// #define UTYPE ap_fixed<18, 11>
+// #define WTYPE ap_fixed<16, -3>
+// #define UVTYPE ap_fixed<34, 8>
+// #define OUTTYPE ap_fixed<32, 6>
 #endif
 const int Bt[6][6] = {
 	{4, 0, -5, 0, 1, 0},
