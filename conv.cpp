@@ -11,18 +11,18 @@
 // #define OUTTYPE ap_fixed<32, 3>
 #define OUTTYPE ap_fixed<32, 6>
 #else
-#define BLOCKTYPE float
-#define BtZTYPE float
-#define UTYPE float
-#define WTYPE float
-#define UVTYPE float
-#define OUTTYPE float
-// #define BLOCKTYPE ap_fixed<16, 4>
-// #define BtZTYPE ap_fixed<18, 7>
-// #define UTYPE ap_fixed<18, 11>
-// #define WTYPE ap_fixed<16, -3>
-// #define UVTYPE ap_fixed<34, 8>
-// #define OUTTYPE ap_fixed<32, 6>
+// #define BLOCKTYPE float
+// #define BtZTYPE float
+// #define UTYPE float
+// #define WTYPE float
+// #define UVTYPE float
+// #define OUTTYPE float
+#define BLOCKTYPE ap_fixed<16, 4>
+#define BtZTYPE ap_fixed<18, 7>
+#define UTYPE ap_fixed<18, 11>
+#define WTYPE ap_fixed<16, 0>
+#define UVTYPE ap_fixed<34, 11>
+#define OUTTYPE ap_fixed<32, 11>
 #endif
 const int Bt[6][6] = {
 	{4, 0, -5, 0, 1, 0},
@@ -102,7 +102,7 @@ loop_W:
 				for (unsigned l = 0; l < Kg; l++)
 				{
 #pragma HLS PIPELINE
-					W_1[i][j][k][l] = w_to_int8(W[offset + i * (CHin * Kg * Kg) + j * Kg * Kg + k * Kg + l]);
+					W_1[i][j][k][l] = W[offset + i * (CHin * Kg * Kg) + j * Kg * Kg + k * Kg + l];
 				}
 			}
 		}
@@ -118,7 +118,7 @@ loop_In:
 			for (unsigned i = 0; i < bCHin && i + CHin_batch < CHin; i++)
 			{
 #pragma HLS PIPELINE
-				In_1[i][j][k] = in_to_int8(In[offset + i * (R_in * C_in) + j * C_in + k]);
+				In_1[i][j][k] = In[offset + i * (R_in * C_in) + j * C_in + k];
 			}
 		}
 	}
@@ -322,7 +322,7 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 						{
 #pragma HLS PIPELINE
 							// Out_1[r2][c2][cho] = 0;
-							Out_1[cho][r2][c2] = out_to_int16(Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)]);
+							Out_1[cho][r2][c2] = Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)];
 						}
 					}
 				}
@@ -361,7 +361,7 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 						for (unsigned cho = 0; cho < bCHout && cho + CHout_batch < CHout; cho++)
 						{
 #pragma HLS PIPELINE
-							Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)] = out_to_float32(Out_1[cho][r2][c2]);
+							Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)] = Out_1[cho][r2][c2];
 						}
 					}
 				}
