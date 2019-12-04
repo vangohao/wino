@@ -148,6 +148,7 @@ inline void UVtoY(UVTYPE UV[6][6], OUTTYPE Y[4][4])
 {
 	#pragma HLS inline
 	UVTYPE AtUV[4][6];
+	OUTTYPE TMP[4][4];
 	for(int i = 0; i < 4; i++)
 	{
 		#pragma HLS unroll
@@ -155,6 +156,16 @@ inline void UVtoY(UVTYPE UV[6][6], OUTTYPE Y[4][4])
 		{
 			#pragma HLS unroll
 			AtUV[i][j] = 0;
+		}
+	}
+
+	for(int i = 0; i < 4; i++)
+	{
+		#pragma HLS unroll
+		for(int j = 0; j < 4; j++)
+		{
+			#pragma HLS unroll
+			TMP[i][j] = Y[i][j];
 		}
 	}
 	
@@ -181,10 +192,21 @@ inline void UVtoY(UVTYPE UV[6][6], OUTTYPE Y[4][4])
 			for(int k = 0; k < 6; k++)
 			{
 				#pragma HLS unroll
-				Y[i][j] += AtUV[i][k] * At[j][k];
+				TMP[i][j] += AtUV[i][k] * At[j][k];
 			}
 		}
-	}	
+	}
+
+	for(int i = 0; i < 4; i++)
+	{
+		#pragma HLS unroll
+		for(int j = 0; j < 4; j++)
+		{
+			#pragma HLS unroll
+			Y[i][j] = TMP[i][j];
+		}
+	}
+
 }
 
 void conv_batch(BLOCKTYPE In_1[bCHin][bR_in][bC_in], OUTTYPE Out_1[bCHout][bR_out][bC_out], WTYPE W_1[bCHout][bCHin][KMax][KMax], ap_int<8> CHin_batch)
