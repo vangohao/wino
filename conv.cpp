@@ -31,7 +31,7 @@ const int At[4][6] = {
 	{0, 1, -1, 8, -8, 1}
 };
 const unsigned int bCHout = 64;
-const unsigned int bCHin = 32;
+const unsigned int bCHin = 16;
 const unsigned int bR_in = 6;
 const unsigned int bC_in = 6;
 const unsigned int KMax = 6;
@@ -200,6 +200,7 @@ void conv_batch(BLOCKTYPE In_1[bCHin][bR_in][bC_in], OUTTYPE Out_1[bCHout][bR_ou
 		loop_CHout:
 			for (unsigned cho = 0; cho < bCHout; cho++)
 			{
+				#pragma HLS pipeline
 				#pragma HLS unroll factor=5
 				UVTYPE UV[6][6];
 				UpointV(U, W_1[cho][chi], UV);
