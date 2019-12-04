@@ -7,8 +7,6 @@
 #define UTYPE ap_fixed<18, 11>
 #define WTYPE ap_fixed<16, -3>
 #define UVTYPE ap_fixed<34, 8>
-// #define WTYPE ap_fixed<16, 0>
-// #define OUTTYPE ap_fixed<32, 3>
 #define OUTTYPE ap_fixed<32, 6>
 #else
 #define BLOCKTYPE ap_fixed<16, 4>
@@ -16,8 +14,6 @@
 #define UTYPE ap_fixed<18, 11>
 #define WTYPE ap_fixed<16, -3>
 #define UVTYPE ap_fixed<34, 8>
-// #define BLOCKTYPE ap_fixed<16, 3>
-// #define WTYPE ap_fixed<16, 0>
 #define OUTTYPE ap_fixed<32, 6>
 #endif
 const int Bt[6][6] = {
@@ -59,33 +55,6 @@ const unsigned int Ki = 6;
 const unsigned int Ko = 4;
 const unsigned int S = 1;
 
-inline WTYPE w_to_int8(d_type x)
-{
-	WTYPE y = 0;
-	y = x * qutw;
-	return y;
-}
-
-inline BLOCKTYPE in_to_int8(d_type x)
-{
-	BLOCKTYPE y = 0;
-	y = x * qut;
-	return y;
-}
-
-inline OUTTYPE out_to_int16(d_type x)
-{
-	OUTTYPE y = 0;
-	y = x * (quto);
-	return y;
-}
-
-inline float out_to_float32(OUTTYPE x)
-{
-	float y = float(x) * invquto;
-	return y;
-}
-
 void load_w(d_type *W, WTYPE W_1[bCHout][bCHin][KMax][KMax], unsigned CHout_batch, unsigned CHin_batch, unsigned offset)
 {
 loop_W:
@@ -98,7 +67,7 @@ loop_W:
 				for (unsigned l = 0; l < Kg; l++)
 				{
 #pragma HLS PIPELINE
-					W_1[i][j][k][l] = w_to_int8(W[offset + i * (CHin * Kg * Kg) + j * Kg * Kg + k * Kg + l]);
+					W_1[i][j][k][l] = W[offset + i * (CHin * Kg * Kg) + j * Kg * Kg + k * Kg + l];
 				}
 			}
 		}
@@ -114,7 +83,7 @@ loop_In:
 			for (unsigned i = 0; i < bCHin && i + CHin_batch < CHin; i++)
 			{
 #pragma HLS PIPELINE
-				In_1[i][j][k] = in_to_int8(In[offset + i * (R_in * C_in) + j * C_in + k]);
+				In_1[i][j][k] = In[offset + i * (R_in * C_in) + j * C_in + k];
 			}
 		}
 	}
@@ -123,7 +92,7 @@ loop_In:
 inline void ZtoU(BLOCKTYPE Z[6][6], UTYPE U[6][6])
 {
 	#pragma HLS inline
-	BtZTYPE BtZ[6][6]={};
+	BtZTYPE BtZ[6][6];
 
 	for(int i = 0; i < 6; i++)
 	{
@@ -132,6 +101,7 @@ inline void ZtoU(BLOCKTYPE Z[6][6], UTYPE U[6][6])
 		{
 		#pragma HLS unroll
 			U[i][j] = 0;
+			BtZ[i][j] = 0;
 		}
 	}
 
@@ -181,8 +151,17 @@ inline void UpointV(UTYPE U[6][6], WTYPE V[6][6], UVTYPE UV[6][6])
 inline void UVtoY(UVTYPE UV[6][6], OUTTYPE Y[4][4])
 {
 	#pragma HLS inline
-	UVTYPE AtUV[4][6]={};
-
+	UVTYPE AtUV[4][6];
+	for(int i = 0; i < 4; i++)
+	{
+		#pragma HLS unroll
+		for(int j = 0; j < 6; j++)
+		{
+			#pragma HLS unroll
+			AtUV[i][j] = 0;
+		}
+	}
+	
 	for(int i = 0; i < 4; i++)
 	{
 		#pragma HLS unroll
@@ -318,7 +297,7 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 						{
 #pragma HLS PIPELINE
 							// Out_1[r2][c2][cho] = 0;
-							Out_1[cho][r2][c2] = out_to_int16(Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)]);
+							Out_1[cho][r2][c2] = Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)];
 						}
 					}
 				}
@@ -357,7 +336,7 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 						for (unsigned cho = 0; cho < bCHout && cho + CHout_batch < CHout; cho++)
 						{
 #pragma HLS PIPELINE
-							Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)] = out_to_float32(Out_1[cho][r2][c2]);
+							Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)] = Out_1[cho][r2][c2];
 						}
 					}
 				}
