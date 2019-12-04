@@ -31,17 +31,12 @@ const int At[4][6] = {
 	{0, 1, -1, 8, -8, 1}
 };
 const unsigned int bCHout = 64;
-const unsigned int bCHin = 16;
+const unsigned int bCHin = 32;
 const unsigned int bR_in = 6;
 const unsigned int bC_in = 6;
 const unsigned int KMax = 6;
 const unsigned int SMin = 1;
-const float qut = 1.;  //52.
-const float qutw = 1.; //3592.
-const int qdiv = 0;	//3
-const float quto = (qut * qutw / (float)(1 << qdiv));
-const float invquto = 1. / quto;
-// 为方便起见, 在block计算时默认增加Padding, 即bR_out=bR_in, 不过Out_1中只有部分会被使用, 算完后抛弃多余的.
+
 const unsigned int bR_out = 4;
 const unsigned int bC_out = 4;
 const unsigned int vbR_out = 4;
@@ -73,6 +68,7 @@ loop_W:
 		}
 	}
 }
+
 void load_in(d_type *In, BLOCKTYPE In_1[bCHin][bR_in][bC_in], unsigned R_in_batch, unsigned C_in_batch, unsigned CHin_batch, unsigned offset)
 {
 loop_In:
@@ -204,6 +200,7 @@ void conv_batch(BLOCKTYPE In_1[bCHin][bR_in][bC_in], OUTTYPE Out_1[bCHout][bR_ou
 		loop_CHout:
 			for (unsigned cho = 0; cho < bCHout; cho++)
 			{
+				#pragma HLS unroll factor=5
 				UVTYPE UV[6][6];
 				UpointV(U, W_1[cho][chi], UV);
 				UVtoY(UV, Out_1[cho]);
@@ -247,10 +244,20 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 	WTYPE W_1[bCHout][bCHin][KMax][KMax];
 // #pragma HLS RESOURCE variable=Out_1 core=RAM_1P_LUTRAM
 // #pragma HLS ARRAY_PARTITION variable = In_1 cyclic factor = 4 dim = 2
-// #pragma HLS ARRAY_PARTITION variable = Out_1 complete dim = 3
-// #pragma HLS ARRAY_PARTITION variable = Out_1 complete
-// #pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 4
-// #pragma HLS ARRAY_PARTITION variable = W_0 complete dim = 4
+#pragma HLS ARRAY_PARTITION variable = In_1 complete dim=2
+#pragma HLS ARRAY_PARTITION variable = In_1 complete dim=3
+#pragma HLS ARRAY_PARTITION variable = In_0 complete dim=2
+#pragma HLS ARRAY_PARTITION variable = In_0 complete dim=3
+
+#pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor=5 dim = 1
+#pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=2
+#pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=3
+#pragma HLS ARRAY_PARTITION variable = W_1 cyclic factor=5 dim = 1
+#pragma HLS ARRAY_PARTITION variable = W_0 cyclic factor=5 dim = 1
+#pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 3
+#pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 4
+#pragma HLS ARRAY_PARTITION variable = W_0 complete dim = 3
+#pragma HLS ARRAY_PARTITION variable = W_0 complete dim = 4
 	// #pragma HLS ARRAY_PARTITION variable=W_1 complete
 
 	/*
