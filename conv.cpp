@@ -8,7 +8,7 @@
 #define WTYPE ap_fixed<16, -3>
 #define UVTYPE ap_fixed<34, 8>
 #define OUTTYPE ap_fixed<32, 6>
-const int UNROLL_FACTOR=1;
+const int UNROLL_FACTOR=2;
 #else
 #define BLOCKTYPE ap_fixed<16, 4>
 #define BtZTYPE ap_fixed<18, 7>
@@ -32,14 +32,14 @@ const int At[4][6] = {
 	{0, 1, -1, 8, -8, 1}
 };
 const unsigned int bCHout = 64;
-const unsigned int bCHin = 16;
+const unsigned int bCHin = 8;
 const unsigned int bR_in = 6;
 const unsigned int bC_in = 6;
 const unsigned int KMax = 6;
 const unsigned int SMin = 1;
 
 const unsigned int tCHout = 64;
-const unsigned int tCHin = 16;
+const unsigned int tCHin = 8;
 const unsigned int tRo = 8;
 const unsigned int tCo = 8;
 const unsigned int tR_out = 4 * tRo;
@@ -227,6 +227,7 @@ void conv_batch(BLOCKTYPE In_1[tCHin][tR_in][tC_in], OUTTYPE Out_1[tCHout][tR_ou
 				loop_CHout:
 					for (unsigned cho = 0; cho < bCHout; cho++)
 					{
+						#pragma HLS pipeline
 						#pragma HLS unroll factor=UNROLL_FACTOR
 						UVTYPE UV[6][6];
 						UpointV(U, W_1[cho][chi], UV);
