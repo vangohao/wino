@@ -8,6 +8,7 @@
 #define WTYPE ap_fixed<16, -3>
 #define UVTYPE ap_fixed<34, 8>
 #define OUTTYPE ap_fixed<32, 6>
+const int UNROLL_FACTOR=4;
 #else
 #define BLOCKTYPE ap_fixed<16, 4>
 #define BtZTYPE ap_fixed<18, 7>
@@ -31,7 +32,7 @@ const int At[4][6] = {
 	{0, 1, -1, 8, -8, 1}
 };
 const unsigned int bCHout = 64;
-const unsigned int bCHin = 32;
+const unsigned int bCHin = 16;
 const unsigned int bR_in = 6;
 const unsigned int bC_in = 6;
 const unsigned int KMax = 6;
@@ -200,7 +201,7 @@ void conv_batch(BLOCKTYPE In_1[bCHin][bR_in][bC_in], OUTTYPE Out_1[bCHout][bR_ou
 		loop_CHout:
 			for (unsigned cho = 0; cho < bCHout; cho++)
 			{
-				#pragma HLS unroll factor=5
+				#pragma HLS unroll factor=UNROLL_FACTOR
 				UVTYPE UV[6][6];
 				UpointV(U, W_1[cho][chi], UV);
 				UVtoY(UV, Out_1[cho]);
@@ -249,11 +250,11 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 #pragma HLS ARRAY_PARTITION variable = In_0 complete dim=2
 #pragma HLS ARRAY_PARTITION variable = In_0 complete dim=3
 
-#pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor=5 dim = 1
+#pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor=UNROLL_FACTOR dim = 1
 #pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=2
 #pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=3
-#pragma HLS ARRAY_PARTITION variable = W_1 cyclic factor=5 dim = 1
-#pragma HLS ARRAY_PARTITION variable = W_0 cyclic factor=5 dim = 1
+#pragma HLS ARRAY_PARTITION variable = W_1 cyclic factor=UNROLL_FACTOR dim = 1
+#pragma HLS ARRAY_PARTITION variable = W_0 cyclic factor=UNROLL_FACTOR dim = 1
 #pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 3
 #pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 4
 #pragma HLS ARRAY_PARTITION variable = W_0 complete dim = 3
