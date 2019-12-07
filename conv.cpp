@@ -8,7 +8,7 @@
 #define WTYPE ap_fixed<16, -3>
 #define UVTYPE ap_fixed<34, 8>
 #define OUTTYPE ap_fixed<32, 6>
-const int UNROLL_FACTOR=4;
+const int UNROLL_FACTOR=1;
 #else
 #define BLOCKTYPE ap_fixed<16, 4>
 #define BtZTYPE ap_fixed<18, 7>
@@ -38,6 +38,15 @@ const unsigned int bC_in = 6;
 const unsigned int KMax = 6;
 const unsigned int SMin = 1;
 
+const unsigned int tCHout = 64;
+const unsigned int tCHin = 16;
+const unsigned int tRo = 8;
+const unsigned int tCo = 8;
+const unsigned int tR_out = 4 * tRo;
+const unsigned int tC_out = 4 * tCo;
+const unsigned int tR_in = 2 + tR_out;
+const unsigned int tC_in = 2 + tC_out;
+
 const unsigned int bR_out = 4;
 const unsigned int bC_out = 4;
 const unsigned int vbR_out = 4;
@@ -51,12 +60,12 @@ const unsigned int Ki = 6;
 const unsigned int Ko = 4;
 const unsigned int S = 1;
 
-void load_w(d_type *W, WTYPE W_1[bCHout][bCHin][KMax][KMax], unsigned CHout_batch, unsigned CHin_batch, unsigned offset)
+void load_w(d_type *W, WTYPE W_1[tCHout][tCHin][KMax][KMax], unsigned CHout_batch, unsigned CHin_batch, unsigned offset)
 {
 loop_W:
-	for (unsigned i = 0; i < bCHout && i + CHout_batch < CHout; i++)
+	for (unsigned i = 0; i < tCHout && i + CHout_batch < CHout; i++)
 	{
-		for (unsigned j = 0; j < bCHin && j + CHin_batch < CHin; j++)
+		for (unsigned j = 0; j < tCHin && j + CHin_batch < CHin; j++)
 		{
 			for (unsigned k = 0; k < Kg; k++)
 			{
@@ -70,14 +79,14 @@ loop_W:
 	}
 }
 
-void load_in(d_type *In, BLOCKTYPE In_1[bCHin][bR_in][bC_in], unsigned R_in_batch, unsigned C_in_batch, unsigned CHin_batch, unsigned offset)
+void load_in(d_type *In, BLOCKTYPE In_1[tCHin][tR_in][tC_in], unsigned R_in_batch, unsigned C_in_batch, unsigned CHin_batch, unsigned offset)
 {
 loop_In:
-	for (unsigned j = 0; j < bR_in && j + R_in_batch < R_in; j++)
+	for (unsigned j = 0; j < tR_in && j + R_in_batch < R_in; j++)
 	{
-		for (unsigned k = 0; k < bC_in && k + C_in_batch < C_in; k++)
+		for (unsigned k = 0; k < tC_in && k + C_in_batch < C_in; k++)
 		{
-			for (unsigned i = 0; i < bCHin && i + CHin_batch < CHin; i++)
+			for (unsigned i = 0; i < tCHin && i + CHin_batch < CHin; i++)
 			{
 #pragma HLS PIPELINE
 				In_1[i][j][k] = In[offset + i * (R_in * C_in) + j * C_in + k];
@@ -188,23 +197,63 @@ inline void UVtoY(UVTYPE UV[6][6], OUTTYPE Y[4][4])
 	}	
 }
 
-void conv_batch(BLOCKTYPE In_1[bCHin][bR_in][bC_in], OUTTYPE Out_1[bCHout][bR_out][bC_out], WTYPE W_1[bCHout][bCHin][KMax][KMax], ap_int<8> CHin_batch)
+void conv_batch(BLOCKTYPE In_1[tCHin][tR_in][tC_in], OUTTYPE Out_1[tCHout][tR_out][tC_out], WTYPE W_1[tCHout][tCHin][KMax][KMax], ap_int<8> CHin_batch)
 {
 	if (CHin_batch)
 	{
-#pragma HLS LOOP_TRIPCOUNT min = 2 max = 5
-	loop_CHin:
-		for (unsigned chi = 0; chi < bCHin && chi + (CHin_batch - bCHin) < CHin; chi++)
+		// 第二层tile
+		loop_tRo:
+		for (int ro = 0; ro < tRo; ro++)
 		{
-			UTYPE U[6][6];
-			ZtoU(In_1[chi], U);
-		loop_CHout:
-			for (unsigned cho = 0; cho < bCHout; cho++)
+			loop_tCo:
+			for (int co = 0; co < tCo; co++)
 			{
-				#pragma HLS unroll factor=UNROLL_FACTOR
-				UVTYPE UV[6][6];
-				UpointV(U, W_1[cho][chi], UV);
-				UVtoY(UV, Out_1[cho]);
+			loop_CHin:
+				for (unsigned chi = 0; chi < bCHin && chi + (CHin_batch - bCHin) < CHin; chi++)
+				{
+					BLOCKTYPE Z[6][6];
+					loop_loadZ:
+					for (int i = 0; i < 6; i++)
+					{
+						#pragma HLS unroll
+						for (int j = 0; j < 6; j++)
+						{
+							#pragma HLS unroll
+							Z[i][j] = In_1[chi][ro * 4 + i][co * 4 + j];
+						}
+					}
+					UTYPE U[6][6];
+					ZtoU(Z, U);
+				loop_CHout:
+					for (unsigned cho = 0; cho < bCHout; cho++)
+					{
+						#pragma HLS unroll factor=UNROLL_FACTOR
+						UVTYPE UV[6][6];
+						UpointV(U, W_1[cho][chi], UV);
+						OUTTYPE Y[4][4];
+						loop_loadY:
+						for(int i = 0; i < 4; i++)
+						{
+							#pragma HLS unroll
+							for(int j = 0; j < 4; j++)
+							{
+								#pragma HLS unroll
+								Y[i][j] = Out_1[cho][ro * 4 + i][co * 4 + j];
+							}
+						}
+						UVtoY(UV, Y);
+						loop_saveY:
+						for(int i = 0; i < 4; i++)
+						{
+							#pragma HLS unroll
+							for(int j = 0; j < 4; j++)
+							{
+								#pragma HLS unroll
+								Out_1[cho][ro * 4 + i][co * 4 + j] = Y[i][j];
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -238,21 +287,26 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 	S : 1
 	*/
 
-	BLOCKTYPE In_1[bCHin][bR_in][bC_in];
-	OUTTYPE Out_1[bCHout][bR_out][bC_out];
-	BLOCKTYPE In_0[bCHin][bR_in][bC_in];
-	WTYPE W_0[bCHout][bCHin][KMax][KMax];
-	WTYPE W_1[bCHout][bCHin][KMax][KMax];
+	BLOCKTYPE In_1[tCHin][tR_in][tC_in];
+	OUTTYPE Out_1[tCHout][tR_out][tC_out];
+	BLOCKTYPE In_0[tCHin][tR_in][tC_in];
+	WTYPE W_0[tCHout][tCHin][KMax][KMax];
+	WTYPE W_1[tCHout][tCHin][KMax][KMax];
 // #pragma HLS RESOURCE variable=Out_1 core=RAM_1P_LUTRAM
-// #pragma HLS ARRAY_PARTITION variable = In_1 cyclic factor = 4 dim = 2
-#pragma HLS ARRAY_PARTITION variable = In_1 complete dim=2
-#pragma HLS ARRAY_PARTITION variable = In_1 complete dim=3
-#pragma HLS ARRAY_PARTITION variable = In_0 complete dim=2
-#pragma HLS ARRAY_PARTITION variable = In_0 complete dim=3
+#pragma HLS ARRAY_PARTITION variable = In_1 cyclic factor = 4 dim = 2
+#pragma HLS ARRAY_PARTITION variable = In_1 cyclic factor = 4 dim = 3
+#pragma HLS ARRAY_PARTITION variable = In_0 cyclic factor = 4 dim = 2
+#pragma HLS ARRAY_PARTITION variable = In_0 cyclic factor = 4 dim = 3
+// #pragma HLS ARRAY_PARTITION variable = In_1 complete dim=2
+// #pragma HLS ARRAY_PARTITION variable = In_1 complete dim=3
+// #pragma HLS ARRAY_PARTITION variable = In_0 complete dim=2
+// #pragma HLS ARRAY_PARTITION variable = In_0 complete dim=3
 
 #pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor=UNROLL_FACTOR dim = 1
-#pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=2
-#pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=3
+#pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor = 4 dim=2
+#pragma HLS ARRAY_PARTITION variable = Out_1 cyclic factor = 4 dim=3
+// #pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=2
+// #pragma HLS ARRAY_PARTITION variable = Out_1 complete dim=3
 #pragma HLS ARRAY_PARTITION variable = W_1 cyclic factor=UNROLL_FACTOR dim = 1
 #pragma HLS ARRAY_PARTITION variable = W_0 cyclic factor=UNROLL_FACTOR dim = 1
 #pragma HLS ARRAY_PARTITION variable = W_1 complete dim = 3
@@ -277,31 +331,26 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 	// K = Parameter[4];
 	// S = Parameter[5];
 
-	if (R_in - K < 0 || C_in - K < 0)
-	{
-		return;
-	}
-
 	unsigned R_out = (((unsigned)(R_in - K))) + 1;
 	unsigned C_out = (((unsigned)(C_in - K))) + 1;
 
-	for (unsigned R_in_batch = 0, R_out_batch = 0; R_out_batch < R_out; (R_in_batch += vbR_in), (R_out_batch += vbR_out))
+	for (unsigned R_in_batch = 0, R_out_batch = 0; R_out_batch < R_out; (R_in_batch += tR_out), (R_out_batch += tR_out))
 	{
 #pragma HLS LOOP_TRIPCOUNT max = 1
-		for (unsigned C_in_batch = 0, C_out_batch = 0; C_out_batch < C_out; (C_in_batch += vbC_in), (C_out_batch += vbC_out))
+		for (unsigned C_in_batch = 0, C_out_batch = 0; C_out_batch < C_out; (C_in_batch += tC_out), (C_out_batch += tC_out))
 		{
 #pragma HLS LOOP_TRIPCOUNT max = 1
-			for (unsigned CHout_batch = 0; CHout_batch < CHout; CHout_batch += bCHout)
+			for (unsigned CHout_batch = 0; CHout_batch < CHout; CHout_batch += tCHout)
 			{
 #pragma HLS LOOP_TRIPCOUNT max = 1
 			loop_Out:
-				for (unsigned r2 = 0; r2 < vbR_out && r2 + R_out_batch < R_out; r2++)
+				for (unsigned r2 = 0; r2 < tR_out && r2 + R_out_batch < R_out; r2++)
 				{
 #pragma HLS LOOP_TRIPCOUNT max = 32
-					for (unsigned c2 = 0; c2 < vbC_out && c2 + C_out_batch < C_out; c2++)
+					for (unsigned c2 = 0; c2 < tC_out && c2 + C_out_batch < C_out; c2++)
 					{
 #pragma HLS LOOP_TRIPCOUNT max = 30
-						for (unsigned cho = 0; cho < bCHout && cho + CHout_batch < CHout; cho++)
+						for (unsigned cho = 0; cho < tCHout && cho + CHout_batch < CHout; cho++)
 						{
 #pragma HLS PIPELINE
 							// Out_1[r2][c2][cho] = 0;
@@ -310,7 +359,7 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 					}
 				}
 				bool ping_pong_flag = 1;
-				for (unsigned CHin_batch = 0; CHin_batch < CHin + bCHin /* ping pong add 1 */; CHin_batch += bCHin)
+				for (unsigned CHin_batch = 0; CHin_batch < CHin + tCHin /* ping pong add 1 */; CHin_batch += tCHin)
 				{
 #pragma HLS LOOP_TRIPCOUNT max = 5
 					printf("FUCKYOU! %u %u %u %u\n", (unsigned)CHin_batch, (unsigned)CHout_batch, (unsigned)R_in_batch, (unsigned)C_in_batch);
@@ -335,13 +384,13 @@ void cnn(d_type *In, d_type *Out, d_type *W, int *Parameter)
 					ping_pong_flag = !ping_pong_flag;
 				}
 			loop_AddedOut:
-				for (unsigned r2 = 0; r2 < vbR_out && r2 + R_out_batch < R_out; r2++)
+				for (unsigned r2 = 0; r2 < tR_out && r2 + R_out_batch < R_out; r2++)
 				{
 #pragma HLS LOOP_TRIPCOUNT max = 32
-					for (unsigned c2 = 0; c2 < vbC_out && c2 + C_out_batch < C_out; c2++)
+					for (unsigned c2 = 0; c2 < tC_out && c2 + C_out_batch < C_out; c2++)
 					{
 #pragma HLS LOOP_TRIPCOUNT max = 30
-						for (unsigned cho = 0; cho < bCHout && cho + CHout_batch < CHout; cho++)
+						for (unsigned cho = 0; cho < tCHout && cho + CHout_batch < CHout; cho++)
 						{
 #pragma HLS PIPELINE
 							Out[(cho + CHout_batch) * R_out * C_out + (r2 + R_out_batch) * C_out + (c2 + C_out_batch)] = Out_1[cho][r2][c2];
